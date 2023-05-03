@@ -6,8 +6,13 @@ authors = ["Saravanan Vijayakumaran <sarva@ee.iitb.ac.in>"]
 license-file = "LICENSE"
 
 [dependencies]
-# bellperson-emulated = { version = "0.1.0", path = "../bellperson-emulated" }
+bellperson = "0.24.1"
+bellperson-emulated = { version = "0.1.0", path = "../bellperson-emulated" }
+ff = { version = "0.12.0", features = ["derive"] }
 num-bigint = { version = "0.4.3", features = ["rand"] }
 num-integer = "0.1.45"
 num-traits = "0.2.15"
 rand = "0.8.5"
+
+[dev-dependencies]
+pasta_curves = { version = "0.5.2", package = "fil_pasta_curves" }
