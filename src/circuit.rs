@@ -1,5 +1,5 @@
 use bellperson::{ConstraintSystem, SynthesisError};
-use bellperson_emulated::field_element::{EmulatedFieldElement, EmulatedFieldParams};
+use bellperson_emulated::field_element::{EmulatedFieldElement, EmulatedFieldParams, PseudoMersennePrime};
 use ff::{PrimeFieldBits, PrimeField};
 use num_bigint::BigInt;
 
@@ -18,6 +18,17 @@ impl EmulatedFieldParams for Ed25519FpParams {
 
     fn modulus() -> BigInt {
         BigInt::parse_bytes(b"7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffed", 16).unwrap()
+    }
+
+    fn is_modulus_pseudo_mersenne() -> bool {
+        true
+    }
+
+    fn pseudo_mersenne_params() -> Option<PseudoMersennePrime> {
+        Some(PseudoMersennePrime {
+            e: 255,
+            c: BigInt::from(19),
+        })
     }
 } 
 
