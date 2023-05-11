@@ -60,8 +60,8 @@ impl<F: PrimeField + PrimeFieldBits> AllocatedAffinePoint<F> {
         let x_limb_values = Ed25519Fp::<F>::from(&value.x);
         let y_limb_values = Ed25519Fp::<F>::from(&value.y);
 
-        let x = x_limb_values.allocate_field_element(&mut cs.namespace(|| "allocate x"))?;
-        let y = y_limb_values.allocate_field_element(&mut cs.namespace(|| "allocate y"))?;
+        let x = x_limb_values.allocate_field_element_unchecked(&mut cs.namespace(|| "allocate x"))?;
+        let y = y_limb_values.allocate_field_element_unchecked(&mut cs.namespace(|| "allocate y"))?;
 
         Ok(Self { x, y, value: value.clone() })
     }
@@ -168,12 +168,12 @@ impl<F: PrimeField + PrimeFieldBits> AllocatedAffinePoint<F> {
             &sum_value,
         )?;
 
-        // sum.x.check_base_field_membership(
-        //     &mut cs.namespace(|| "check x coordinate of sum is in base field")
-        // )?;
-        // sum.y.check_base_field_membership(
-        //     &mut cs.namespace(|| "check y coordinate of sum is in base field")
-        // )?;
+        sum.x.check_field_membership(
+            &mut cs.namespace(|| "check x coordinate of sum is in base field")
+        )?;
+        sum.y.check_field_membership(
+            &mut cs.namespace(|| "check y coordinate of sum is in base field")
+        )?;
 
         Self::verify_ed25519_point_addition(
             &mut cs.namespace(|| "verify point addition"),
