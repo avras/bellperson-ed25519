@@ -67,7 +67,7 @@ impl<F: PrimeField + PrimeFieldBits> AllocatedAffinePoint<F> {
     }
 
 
-    fn verify_ed25519_point_addition<CS>(
+    fn verify_point_addition<CS>(
         cs: &mut CS,
         p: &Self,
         q: &Self,
@@ -175,7 +175,7 @@ impl<F: PrimeField + PrimeFieldBits> AllocatedAffinePoint<F> {
             &mut cs.namespace(|| "check y coordinate of sum is in base field")
         )?;
 
-        Self::verify_ed25519_point_addition(
+        Self::verify_point_addition(
             &mut cs.namespace(|| "verify point addition"),
             p,
             q,
@@ -184,6 +184,110 @@ impl<F: PrimeField + PrimeFieldBits> AllocatedAffinePoint<F> {
 
         Ok(sum)
     }
+
+    fn verify_point_doubling<CS>(
+        cs: &mut CS,
+        p: &Self,
+        doubled_p: &Self,
+    ) -> Result<(), SynthesisError>
+    where
+        CS: ConstraintSystem<F>,
+    {
+        if !p.value.is_on_curve() {
+            eprintln!("Input to this method must be a curve point");
+            return Err(SynthesisError::Unsatisfiable);
+        }
+
+        let x = &p.x;
+        let y = &p.y;
+
+        let x2 = x.mul(
+            &mut cs.namespace(|| "x*x"),
+            x,
+        )?;
+        let y2 = y.mul(
+            &mut cs.namespace(|| "y*y"),
+            y,
+        )?;
+        let xy = x.mul(
+            &mut cs.namespace(|| "x*y"),
+            y,
+        )?;
+
+        // Numerator of doubled_p x-coordinate
+        let expected_x_numerator = xy.mul_const(
+            &mut cs.namespace(|| "2*x*y"),
+            &BigInt::from(2),
+        )?;
+        let minus_x2 = x2.neg(&mut cs.namespace(|| "-x*x"))?;
+        // Since curve equation is -x^2 + y^2 = 1 + dx^2y^2, we can calculate the RHS using the LHS
+        let doubled_p_x_denominator = minus_x2.add(
+            &mut cs.namespace(|| "-x*x+ y*y  a.k.a  1 + d*x*x*y*y"),
+            &y2,
+        )?;
+        let doubled_p_x_numerator = doubled_p.x.mul(
+            &mut cs.namespace(|| "2P.x times (1+d*x*x*y*y)"),
+            &doubled_p_x_denominator,
+        )?;
+        Ed25519Fp::<F>::assert_is_equal(
+            &mut cs.namespace(|| "2P.x times (1+d*x*x*y*y) == 2*x*y"),
+            &doubled_p_x_numerator,
+            &expected_x_numerator,
+        )?;
+
+
+        // Numerator of doubled_p y-coordinate
+        let expected_y_numerator = x2.add(
+            &mut cs.namespace(|| "x*x + y*y"),
+            &y2,
+        )?;
+        let two = Ed25519Fp::<F>::from(&Fe25519::from(2u64));
+        let doubled_p_y_denominator = two.sub(
+            &mut cs.namespace(|| " 2 - (1 + d*x*x*y*y) = 1 - d*x*x*y*y"),
+            &doubled_p_x_denominator,
+        )?;
+        let doubled_p_y_numerator = doubled_p.y.mul(
+            &mut cs.namespace(|| "2P.y times (1-d*x*x*y*y)"),
+            &doubled_p_y_denominator,
+        )?;
+        Ed25519Fp::<F>::assert_is_equal(
+            &mut cs.namespace(|| "2P.y times (1-d*x*x*y*y) == x*x + y*y"),
+            &doubled_p_y_numerator,
+            &expected_y_numerator,
+        )?;
+        
+        Ok(())
+    }
+
+    pub fn ed25519_point_doubling<CS>(
+        cs: &mut CS,
+        p: &Self,
+    ) -> Result<Self, SynthesisError>
+    where
+        CS: ConstraintSystem<F>,
+    {
+        let double_value = p.value.double();
+        let double_p = Self::alloc_affine_point(
+            &mut cs.namespace(|| "allocate 2P"),
+            &double_value,
+        )?;
+
+        double_p.x.check_field_membership(
+            &mut cs.namespace(|| "check x coordinate of double point is in base field")
+        )?;
+        double_p.y.check_field_membership(
+            &mut cs.namespace(|| "check y coordinate of double point is in base field")
+        )?;
+
+        Self::verify_point_doubling(
+            &mut cs.namespace(|| "verify point doubling"),
+            p,
+            &double_p,
+        )?;
+
+        Ok(double_p)
+    }
+
 }
 
 
@@ -198,7 +302,7 @@ mod tests {
     use pasta_curves::Fp;
 
     #[test]
-    fn alloc_affine_point_addition_verification() {
+    fn alloc_affine_point_addition() {
         let b = Ed25519Curve::basepoint();
         let mut rng = rand::thread_rng();
         let scalar = rng.gen_bigint_range(&BigInt::zero(), &Ed25519Curve::order());
@@ -232,6 +336,41 @@ mod tests {
         let sum_al = sum_alloc.unwrap();
 
         assert_eq!(sum_expected_value, sum_al.value);
+
+        if !cs.is_satisfied() {
+            eprintln!("{:?}", cs.which_is_unsatisfied())
+        }
+        assert!(cs.is_satisfied());
+        println!("Num constraints = {:?}", cs.num_constraints());
+        println!("Num inputs = {:?}", cs.num_inputs());
+
+    }
+
+    #[test]
+    fn alloc_affine_point_doubling() {
+        let b = Ed25519Curve::basepoint();
+        let mut rng = rand::thread_rng();
+        let scalar = rng.gen_bigint_range(&BigInt::zero(), &Ed25519Curve::order());
+        let p = Ed25519Curve::scalar_multiplication(&b, &scalar);
+        let double_expected_value = p.double();
+
+        let mut cs = TestConstraintSystem::<Fp>::new();
+
+        let p_alloc = AllocatedAffinePoint::alloc_affine_point(
+            &mut cs.namespace(|| "alloc point p"),
+            &p,
+        );
+        assert!(p_alloc.is_ok());
+        let p_al = p_alloc.unwrap();
+
+        let double_alloc = AllocatedAffinePoint::ed25519_point_doubling(
+            &mut cs.namespace(|| "doubling p"),
+            &p_al,
+        );
+        assert!(double_alloc.is_ok());
+        let double_al = double_alloc.unwrap();
+
+        assert_eq!(double_expected_value, double_al.value);
 
         if !cs.is_satisfied() {
             eprintln!("{:?}", cs.which_is_unsatisfied())
