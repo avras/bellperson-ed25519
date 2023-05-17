@@ -1,6 +1,6 @@
 use std::ops::{Add, Neg, Sub};
 
-use num_bigint::BigInt;
+use num_bigint::{BigInt, BigUint};
 use num_integer::Integer;
 
 use crate::field::Fe25519;
@@ -112,8 +112,8 @@ impl Ed25519Curve {
         Fe25519(BigInt::parse_bytes(b"52036cee2b6ffe738cc740797779e89800700a4d4141d8ab75eb4dca135978a3", 16).unwrap())
     }
 
-    pub fn order() -> BigInt {
-        BigInt::parse_bytes(b"1000000000000000000000000000000014def9dea2f79cd65812631a5cf5d3ed", 16).unwrap()
+    pub fn order() -> BigUint {
+        BigUint::parse_bytes(b"1000000000000000000000000000000014def9dea2f79cd65812631a5cf5d3ed", 16).unwrap()
     }
 
     pub fn recover_even_x_from_y(y: &Fe25519) -> Fe25519 {
@@ -158,7 +158,7 @@ impl Ed25519Curve {
         }
     }
 
-    pub fn scalar_multiplication(point: &AffinePoint, scalar: &BigInt) -> AffinePoint {
+    pub fn scalar_multiplication(point: &AffinePoint, scalar: &BigUint) -> AffinePoint {
         assert!(scalar.bits() <= 256u64);
         let mut scaled_scalar = scalar.clone();
         // let mut scaled_scalar = scalar.rem(Self::order());
@@ -222,7 +222,7 @@ mod tests {
     fn point_scalar_multiplication() {
         let b = &Ed25519Curve::basepoint();
         assert!(Ed25519Curve::is_on_curve(b));
-        let scalar = BigInt::from(6);
+        let scalar = BigUint::from(6u8);
         let p = Ed25519Curve::scalar_multiplication(&b, &scalar);
         assert_eq!(p, b+b+b+b+b+b);
     }
@@ -231,7 +231,7 @@ mod tests {
     fn point_order() {
         let b = Ed25519Curve::basepoint();
         assert!(Ed25519Curve::is_on_curve(&b));
-        let scalar: BigInt = Ed25519Curve::order();
+        let scalar: BigUint = Ed25519Curve::order();
         let p = Ed25519Curve::scalar_multiplication(&b, &scalar);
         assert!(p.is_zero());
 
