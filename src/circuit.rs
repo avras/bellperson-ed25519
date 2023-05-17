@@ -1,4 +1,5 @@
 use bellperson::{ConstraintSystem, SynthesisError};
+use bellperson::gadgets::boolean::Boolean;
 use bellperson_emulated::field_element::{EmulatedFieldElement, EmulatedFieldParams, PseudoMersennePrime};
 use ff::{PrimeFieldBits, PrimeField};
 use num_bigint::BigInt;
@@ -43,6 +44,7 @@ where
     }
 }
 
+#[derive(Clone)]
 pub struct AllocatedAffinePoint<F: PrimeField + PrimeFieldBits> {
     x: Ed25519Fp<F>,
     y: Ed25519Fp<F>,
@@ -64,6 +66,29 @@ impl<F: PrimeField + PrimeFieldBits> AllocatedAffinePoint<F> {
         let y = y_limb_values.allocate_field_element_unchecked(&mut cs.namespace(|| "allocate y"))?;
 
         Ok(Self { x, y, value: value.clone() })
+    }
+
+    pub fn alloc_identity_point<CS>(
+        cs: &mut CS,
+    ) -> Result<Self, SynthesisError>
+    where
+        CS: ConstraintSystem<F>,
+    {
+        let identity_value = AffinePoint::default();
+        let identity = Self::alloc_affine_point(
+            &mut cs.namespace(|| "alloc identity point"),
+            &identity_value,
+        )?;
+
+        identity.x.assert_equality_to_constant(
+            &mut cs.namespace(|| "check x equals 0"),
+            &Ed25519Fp::zero(),
+        )?;
+        identity.y.assert_equality_to_constant(
+            &mut cs.namespace(|| "check y equals 1"),
+            &Ed25519Fp::one(),
+        )?;
+        Ok(identity)
     }
 
 
@@ -288,6 +313,94 @@ impl<F: PrimeField + PrimeFieldBits> AllocatedAffinePoint<F> {
         Ok(double_p)
     }
 
+
+    /// If `condition` is true, return `in1`. Otherwise, return `in0`.
+    fn conditionally_select<CS>(
+        cs: &mut CS,
+        in0: &Self,
+        in1: &Self,
+        condition: &Boolean,
+    ) -> Result<Self, SynthesisError>
+    where
+        CS: ConstraintSystem<F>,
+    {
+        let x = EmulatedFieldElement::conditionally_select(
+            &mut cs.namespace(|| "allocate value of output x coordinate"),
+            &in0.x,
+            &in1.x,
+            condition,
+        )?;
+
+        let y = EmulatedFieldElement::conditionally_select(
+            &mut cs.namespace(|| "allocate value of output y coordinate"),
+            &in0.y,
+            &in1.y,
+            condition,
+        )?;
+
+        let c = condition.get_value().unwrap();
+        let value = if c {
+            in1.value.clone()
+        } else {
+            in0.value.clone()
+        };
+        
+        Ok(Self { x, y, value })
+    }
+
+    pub fn ed25519_scalar_multiplication_window1<CS>(
+        self,
+        cs: &mut CS,
+        scalar: Vec<Boolean>,
+    ) -> Result<Self, SynthesisError>
+    where
+        CS: ConstraintSystem<F>,
+    {
+        if scalar.len() >= 254usize {
+            // the largest curve25519 scalar fits in 253 bits
+            eprintln!("Scalar bit vector has more than 253 bits");
+            return Err(SynthesisError::Unsatisfiable);
+        }
+        
+        // No range checks on limbs required as it is checked to be equal to (0,1)
+        let mut output = Self::alloc_identity_point(
+            &mut cs.namespace(|| "allocate initial value of output"),
+        )?;
+
+        // Remember to avoid field membership checks before calling this function
+        self.x.check_field_membership(
+            &mut cs.namespace(|| "check x coordinate of base point is in base field")
+        )?;
+        self.y.check_field_membership(
+            &mut cs.namespace(|| "check y coordinate of base point is in base field")
+        )?;
+
+        let mut step_point = self;
+
+        for (i, bit) in scalar.iter().enumerate() {
+            let output0 = output.clone();
+            let output1 = Self::ed25519_point_addition(
+                &mut cs.namespace(|| format!("sum in step {i} if bit is one")),
+                &output,
+                &step_point,
+            )?;
+
+            output = Self::conditionally_select(
+                &mut cs.namespace(|| format!("conditionally select output point in step {i}")),
+                &output0,
+                &output1,
+                bit,
+            )?;
+
+            step_point = Self::ed25519_point_doubling(
+                &mut cs.namespace(|| format!("point doubling in step {i}")),
+                &step_point,
+            )?;
+        }
+
+        Ok(output)
+    }
+    
 }
 
 
@@ -297,7 +410,8 @@ mod tests {
 
     use super::*;
     use bellperson::gadgets::test::TestConstraintSystem;
-    use num_bigint::RandBigInt;
+    use num_bigint::{RandBigInt, BigUint};
+    use num_integer::Integer;
     use num_traits::Zero;
     use pasta_curves::Fp;
 
@@ -305,9 +419,9 @@ mod tests {
     fn alloc_affine_point_addition() {
         let b = Ed25519Curve::basepoint();
         let mut rng = rand::thread_rng();
-        let scalar = rng.gen_bigint_range(&BigInt::zero(), &Ed25519Curve::order());
+        let scalar = rng.gen_biguint_range(&BigUint::zero(), &Ed25519Curve::order());
         let p = Ed25519Curve::scalar_multiplication(&b, &scalar);
-        let scalar = rng.gen_bigint_range(&BigInt::zero(), &Ed25519Curve::order());
+        let scalar = rng.gen_biguint_range(&BigUint::zero(), &Ed25519Curve::order());
         let q = Ed25519Curve::scalar_multiplication(&b, &scalar);
         let sum_expected_value = &p + &q;
 
@@ -350,7 +464,7 @@ mod tests {
     fn alloc_affine_point_doubling() {
         let b = Ed25519Curve::basepoint();
         let mut rng = rand::thread_rng();
-        let scalar = rng.gen_bigint_range(&BigInt::zero(), &Ed25519Curve::order());
+        let scalar = rng.gen_biguint_range(&BigUint::zero(), &Ed25519Curve::order());
         let p = Ed25519Curve::scalar_multiplication(&b, &scalar);
         let double_expected_value = p.double();
 
@@ -375,6 +489,49 @@ mod tests {
         if !cs.is_satisfied() {
             eprintln!("{:?}", cs.which_is_unsatisfied())
         }
+        assert!(cs.is_satisfied());
+        println!("Num constraints = {:?}", cs.num_constraints());
+        println!("Num inputs = {:?}", cs.num_inputs());
+
+    }
+
+    #[test]
+    fn alloc_affine_scalar_multiplication_window1() {
+        let b = Ed25519Curve::basepoint();
+        let mut rng = rand::thread_rng();
+       
+        let mut scalar = rng.gen_biguint(256u64);
+        scalar = scalar >> 3; // scalar now has 253 significant bits
+        let p = Ed25519Curve::scalar_multiplication(&b, &scalar);
+       
+        let mut scalar_vec: Vec<Boolean> = vec![];
+        for _i in 0..253 {
+            if scalar.is_odd() {
+                scalar_vec.push(Boolean::constant(true))
+            } else {
+                scalar_vec.push(Boolean::constant(false))
+            };
+            scalar = scalar >> 1;
+        }
+
+        let mut cs = TestConstraintSystem::<Fp>::new();
+
+        let b_alloc = AllocatedAffinePoint::alloc_affine_point(
+            &mut cs.namespace(|| "allocate base point"),
+            &b,
+        );
+        assert!(b_alloc.is_ok());
+        let b_al = b_alloc.unwrap();
+
+        let p_alloc = b_al.ed25519_scalar_multiplication_window1(
+            &mut cs.namespace(|| "scalar multiplication"),
+            scalar_vec,
+        );
+        assert!(p_alloc.is_ok());
+        let p_al = p_alloc.unwrap();
+
+        assert_eq!(p, p_al.value);
+
         assert!(cs.is_satisfied());
         println!("Num constraints = {:?}", cs.num_constraints());
         println!("Num inputs = {:?}", cs.num_inputs());
