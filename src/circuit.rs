@@ -315,200 +315,50 @@ impl<F: PrimeField + PrimeFieldBits> AllocatedAffinePoint<F> {
 
 
     /// If `condition` is true, return `in1`. Otherwise, return `in0`.
+    /// `selector_bits` are little-endian order
     fn conditionally_select<CS>(
         cs: &mut CS,
-        in0: &Self,
-        in1: &Self,
-        condition: &Boolean,
+        inputs: &[&Self],
+        selector_bits: &[Boolean],
     ) -> Result<Self, SynthesisError>
     where
         CS: ConstraintSystem<F>,
     {
-        let x = EmulatedFieldElement::conditionally_select(
-            &mut cs.namespace(|| "allocate value of output x coordinate"),
-            &in0.x,
-            &in1.x,
-            condition,
-        )?;
+        if inputs.len() != (1usize << selector_bits.len()) {
+            eprintln!(
+                "Number of inputs {} must be equal to 2^(number of selector bits) = 2^{}",
+                inputs.len(),
+                selector_bits.len(),
+            );
+            return Err(SynthesisError::Unsatisfiable);
+        }
+        let inputs_x = inputs
+            .iter()
+            .map(|i| i.x.clone())
+            .collect::<Vec<_>>();
+        let inputs_y = inputs
+            .iter()
+            .map(|i| i.y.clone())
+            .collect::<Vec<_>>();
 
-        let y = EmulatedFieldElement::conditionally_select(
-            &mut cs.namespace(|| "allocate value of output y coordinate"),
-            &in0.y,
-            &in1.y,
-            condition,
-        )?;
-
-        let c = condition.get_value().unwrap();
-        let value = if c {
-            in1.value.clone()
-        } else {
-            in0.value.clone()
-        };
-        
-        Ok(Self { x, y, value })
-    }
-
-    /// Return inx where x = condition0 + 2*condition1
-    fn conditionally_select2<CS>(
-        cs: &mut CS,
-        in0: &Self,
-        in1: &Self,
-        in2: &Self,
-        in3: &Self,
-        condition0: &Boolean,
-        condition1: &Boolean,
-    ) -> Result<Self, SynthesisError>
-    where
-        CS: ConstraintSystem<F>,
-    {
         let x = EmulatedFieldElement::mux_tree(
             &mut cs.namespace(|| "allocate value of output x coordinate"),
-            [condition1, condition0].into_iter(),
-            &[in0.x.clone(), in1.x.clone(), in2.x.clone(), in3.x.clone()],
+            selector_bits.into_iter().rev(), // mux_tree requires MSB first
+            &inputs_x,
         )?;
-
         let y = EmulatedFieldElement::mux_tree(
             &mut cs.namespace(|| "allocate value of output y coordinate"),
-            [condition1, condition0].into_iter(),
-            &[in0.y.clone(), in1.y.clone(), in2.y.clone(), in3.y.clone()],
+            selector_bits.into_iter().rev(), // mux_tree requires MSB first
+            &inputs_y,
         )?;
 
-        let value = match (condition1.get_value().unwrap(), condition0.get_value().unwrap()) {
-            (false, false) => in0.value.clone(),
-            (false,  true)  => in1.value.clone(),
-            (true,  false) => in2.value.clone(),
-            (true,   true)  => in3.value.clone(),
-        };
-        
-        Ok(Self { x, y, value })
-    }
-
-    /// Return inx where x = condition0 + 2*condition1 + 4*condition2
-    fn conditionally_select3<CS>(
-        cs: &mut CS,
-        in0: &Self,
-        in1: &Self,
-        in2: &Self,
-        in3: &Self,
-        in4: &Self,
-        in5: &Self,
-        in6: &Self,
-        in7: &Self,
-        condition0: &Boolean,
-        condition1: &Boolean,
-        condition2: &Boolean,
-    ) -> Result<Self, SynthesisError>
-    where
-        CS: ConstraintSystem<F>,
-    {
-        let x = EmulatedFieldElement::mux_tree(
-            &mut cs.namespace(|| "allocate value of output x coordinate"),
-            [condition2, condition1, condition0].into_iter(),
-            &[
-                in0.x.clone(), in1.x.clone(), in2.x.clone(), in3.x.clone(),
-                in4.x.clone(), in5.x.clone(), in6.x.clone(), in7.x.clone(),
-            ],
-        )?;
-
-        let y = EmulatedFieldElement::mux_tree(
-            &mut cs.namespace(|| "allocate value of output y coordinate"),
-            [condition2, condition1, condition0].into_iter(),
-            &[
-                in0.y.clone(), in1.y.clone(), in2.y.clone(), in3.y.clone(),
-                in4.y.clone(), in5.y.clone(), in6.y.clone(), in7.y.clone(),
-            ],
-        )?;
-
-        let value = match (
-            condition2.get_value().unwrap(),
-            condition1.get_value().unwrap(),
-            condition0.get_value().unwrap(),
-        ) {
-            (false, false, false) => in0.value.clone(),
-            (false, false,  true) => in1.value.clone(),
-            (false, true,  false) => in2.value.clone(),
-            (false, true,   true) => in3.value.clone(),
-            (true,  false, false) => in4.value.clone(),
-            (true,  false,  true) => in5.value.clone(),
-            (true,  true,  false) => in6.value.clone(),
-            (true,  true,   true) => in7.value.clone(),
-        };
-        
-        Ok(Self { x, y, value })
-    }
-
-    /// Return inx where x = condition0 + 2*condition1 + 4*condition2 + 8*condition3
-    fn conditionally_select4<CS>(
-        cs: &mut CS,
-        in0: &Self,
-        in1: &Self,
-        in2: &Self,
-        in3: &Self,
-        in4: &Self,
-        in5: &Self,
-        in6: &Self,
-        in7: &Self,
-        in8: &Self,
-        in9: &Self,
-        in10: &Self,
-        in11: &Self,
-        in12: &Self,
-        in13: &Self,
-        in14: &Self,
-        in15: &Self,
-        condition0: &Boolean,
-        condition1: &Boolean,
-        condition2: &Boolean,
-        condition3: &Boolean,
-    ) -> Result<Self, SynthesisError>
-    where
-        CS: ConstraintSystem<F>,
-    {
-        let x = EmulatedFieldElement::mux_tree(
-            &mut cs.namespace(|| "allocate value of output x coordinate"),
-            [condition3, condition2, condition1, condition0].into_iter(),
-            &[
-                in0.x.clone(), in1.x.clone(), in2.x.clone(), in3.x.clone(),
-                in4.x.clone(), in5.x.clone(), in6.x.clone(), in7.x.clone(),
-                in8.x.clone(), in9.x.clone(), in10.x.clone(), in11.x.clone(),
-                in12.x.clone(), in13.x.clone(), in14.x.clone(), in15.x.clone(),
-            ],
-        )?;
-
-        let y = EmulatedFieldElement::mux_tree(
-            &mut cs.namespace(|| "allocate value of output y coordinate"),
-            [condition3, condition2, condition1, condition0].into_iter(),
-            &[
-                in0.y.clone(), in1.y.clone(), in2.y.clone(), in3.y.clone(),
-                in4.y.clone(), in5.y.clone(), in6.y.clone(), in7.y.clone(),
-                in8.y.clone(), in9.y.clone(), in10.y.clone(), in11.y.clone(),
-                in12.y.clone(), in13.y.clone(), in14.y.clone(), in15.y.clone(),
-            ],
-        )?;
-
-        let value = match (
-            condition3.get_value().unwrap(),
-            condition2.get_value().unwrap(),
-            condition1.get_value().unwrap(),
-            condition0.get_value().unwrap(),
-        ) {
-            (false, false, false, false) => in0.value.clone(),
-            (false, false, false,  true) => in1.value.clone(),
-            (false, false, true,  false) => in2.value.clone(),
-            (false, false, true,   true) => in3.value.clone(),
-            (false, true,  false, false) => in4.value.clone(),
-            (false, true,  false,  true) => in5.value.clone(),
-            (false, true,  true,  false) => in6.value.clone(),
-            (false, true,  true,   true) => in7.value.clone(),
-            (true,  false, false, false) => in8.value.clone(),
-            (true,  false, false,  true) => in9.value.clone(),
-            (true,  false, true,  false) => in10.value.clone(),
-            (true,  false, true,   true) => in11.value.clone(),
-            (true,  true,  false, false) => in12.value.clone(),
-            (true,  true,  false,  true) => in13.value.clone(),
-            (true,  true,  true,  false) => in14.value.clone(),
-            (true,  true,  true,   true) => in15.value.clone(),
-        };
+        let mut res_index = 0usize;
+        for (i, b) in selector_bits.iter().enumerate() {
+            if b.get_value().unwrap() {
+                res_index += 1 << i;
+            }
+        }
+        let value = inputs[res_index].value.clone();
         
         Ok(Self { x, y, value })
     }
@@ -542,7 +392,7 @@ impl<F: PrimeField + PrimeFieldBits> AllocatedAffinePoint<F> {
 
         let mut step_point = self.clone();
 
-        for (i, bit) in scalar.iter().enumerate() {
+        for (i, bit) in scalar.into_iter().enumerate() {
             let output0 = output.clone();
             let output1 = Self::ed25519_point_addition(
                 &mut cs.namespace(|| format!("sum in step {i} if bit is one")),
@@ -552,9 +402,8 @@ impl<F: PrimeField + PrimeFieldBits> AllocatedAffinePoint<F> {
 
             output = Self::conditionally_select(
                 &mut cs.namespace(|| format!("conditionally select output point in step {i}")),
-                &output0,
-                &output1,
-                bit,
+                &[&output0, &output1],
+                &[bit],
             )?;
 
             step_point = Self::ed25519_point_doubling(
@@ -605,14 +454,10 @@ impl<F: PrimeField + PrimeFieldBits> AllocatedAffinePoint<F> {
         let n = scalar.len() - 1;
         assert!(n > 0);
 
-        let mut output = Self::conditionally_select2(
+        let mut output = Self::conditionally_select(
             &mut cs.namespace(|| "allocate initial value of output"),
-            &identity_point,
-            &self,
-            &self_times_2,
-            &self_times_3,
-            &scalar[n-1],
-            &scalar[n]
+            &[&identity_point, self, &self_times_2, &self_times_3],
+            &[scalar[n-1].clone(), scalar[n].clone()],
         )?;
             
         let mut i = n-2;
@@ -626,14 +471,10 @@ impl<F: PrimeField + PrimeFieldBits> AllocatedAffinePoint<F> {
                 &output,
             )?;
 
-            let tmp = Self::conditionally_select2(
+            let tmp = Self::conditionally_select(
                 &mut cs.namespace(|| format!("allocate tmp value in iteration {i}")),
-                &identity_point,
-                &self,
-                &self_times_2,
-                &self_times_3,
-                &scalar[i-1],
-                &scalar[i]
+                &[&identity_point, self, &self_times_2, &self_times_3],
+                &[scalar[i-1].clone(), scalar[i].clone()],
             )?;
 
             output = Self::ed25519_point_addition(
@@ -657,9 +498,8 @@ impl<F: PrimeField + PrimeFieldBits> AllocatedAffinePoint<F> {
             )?;
             output = Self::conditionally_select(
                 cs,
-                &output,
-                &tmp,
-                &scalar[0],
+                &[&output, &tmp],
+                &[scalar[0].clone()],
             )?;
             
         }
@@ -724,19 +564,10 @@ impl<F: PrimeField + PrimeFieldBits> AllocatedAffinePoint<F> {
         let n = scalar.len() - 1;
         assert!(n > 1);
 
-        let mut output = Self::conditionally_select3(
+        let mut output = Self::conditionally_select(
             &mut cs.namespace(|| "allocate initial value of output"),
-            &identity_point,
-            &self,
-            &self_times_2,
-            &self_times_3,
-            &self_times_4,
-            &self_times_5,
-            &self_times_6,
-            &self_times_7,
-            &scalar[n-2],
-            &scalar[n-1],
-            &scalar[n]
+            &[&identity_point, self, &self_times_2, &self_times_3, &self_times_4, &self_times_5, &self_times_6, &self_times_7],
+            &[scalar[n-2].clone(), scalar[n-1].clone(), scalar[n].clone()]
         )?;
             
         let mut i = n-3;
@@ -754,19 +585,10 @@ impl<F: PrimeField + PrimeFieldBits> AllocatedAffinePoint<F> {
                 &output,
             )?;
 
-            let tmp = Self::conditionally_select3(
+            let tmp = Self::conditionally_select(
                 &mut cs.namespace(|| format!("allocate tmp value in iteration {i}")),
-                &identity_point,
-                &self,
-                &self_times_2,
-                &self_times_3,
-                &self_times_4,
-                &self_times_5,
-                &self_times_6,
-                &self_times_7,
-                &scalar[i-2],
-                &scalar[i-1],
-                &scalar[i]
+                &[&identity_point, self, &self_times_2, &self_times_3, &self_times_4, &self_times_5, &self_times_6, &self_times_7],
+                &[scalar[i-2].clone(), scalar[i-1].clone(), scalar[i].clone()]
             )?;
 
             output = Self::ed25519_point_addition(
@@ -790,9 +612,8 @@ impl<F: PrimeField + PrimeFieldBits> AllocatedAffinePoint<F> {
             )?;
             output = Self::conditionally_select(
                 cs,
-                &output,
-                &tmp,
-                &scalar[0],
+                &[&output, &tmp],
+                &[scalar[0].clone()],
             )?;
         } else if scalar.len() % 3 == 2 {
             let output2 = Self::ed25519_point_doubling(
@@ -818,14 +639,10 @@ impl<F: PrimeField + PrimeFieldBits> AllocatedAffinePoint<F> {
                 &output4,
                 &self_times_3,
             )?;
-            output = Self::conditionally_select2(
+            output = Self::conditionally_select(
                 cs,
-                &output4,
-                &tmp1,
-                &tmp2,
-                &tmp3,
-                &scalar[0],
-                &scalar[1],
+                &[&output4, &tmp1, &tmp2, &tmp3],
+                &[scalar[0].clone(), scalar[1].clone()],
             )?;
         }
 
@@ -925,28 +742,13 @@ impl<F: PrimeField + PrimeFieldBits> AllocatedAffinePoint<F> {
         let n = scalar.len() - 1;
         assert!(n > 2);
 
-        let mut output = Self::conditionally_select4(
+        let mut output = Self::conditionally_select(
             &mut cs.namespace(|| "allocate initial value of output"),
-            &identity_point,
-            &self,
-            &self_times_2,
-            &self_times_3,
-            &self_times_4,
-            &self_times_5,
-            &self_times_6,
-            &self_times_7,
-            &self_times_8,
-            &self_times_9,
-            &self_times_10,
-            &self_times_11,
-            &self_times_12,
-            &self_times_13,
-            &self_times_14,
-            &self_times_15,
-            &scalar[n-3],
-            &scalar[n-2],
-            &scalar[n-1],
-            &scalar[n]
+            &[
+                &identity_point, self, &self_times_2, &self_times_3, &self_times_4, &self_times_5, &self_times_6, &self_times_7,
+                &self_times_8, &self_times_9, &self_times_10, &self_times_11, &self_times_12, &self_times_13, &self_times_14, &self_times_15,
+            ],
+            &[scalar[n-3].clone(), scalar[n-2].clone(), scalar[n-1].clone(), scalar[n].clone()]
         )?;
             
         let mut i = n-4;
@@ -968,28 +770,13 @@ impl<F: PrimeField + PrimeFieldBits> AllocatedAffinePoint<F> {
                 &output,
             )?;
 
-            let tmp = Self::conditionally_select4(
+            let tmp = Self::conditionally_select(
                 &mut cs.namespace(|| format!("allocate tmp value in iteration {i}")),
-                &identity_point,
-                &self,
-                &self_times_2,
-                &self_times_3,
-                &self_times_4,
-                &self_times_5,
-                &self_times_6,
-                &self_times_7,
-                &self_times_8,
-                &self_times_9,
-                &self_times_10,
-                &self_times_11,
-                &self_times_12,
-                &self_times_13,
-                &self_times_14,
-                &self_times_15,
-                &scalar[i-3],
-                &scalar[i-2],
-                &scalar[i-1],
-                &scalar[i]
+                &[
+                    &identity_point, self, &self_times_2, &self_times_3, &self_times_4, &self_times_5, &self_times_6, &self_times_7,
+                    &self_times_8, &self_times_9, &self_times_10, &self_times_11, &self_times_12, &self_times_13, &self_times_14, &self_times_15,
+                ],
+                &[scalar[i-3].clone(), scalar[i-2].clone(), scalar[i-1].clone(), scalar[i].clone()]
             )?;
 
             output = Self::ed25519_point_addition(
@@ -1013,9 +800,8 @@ impl<F: PrimeField + PrimeFieldBits> AllocatedAffinePoint<F> {
             )?;
             output = Self::conditionally_select(
                 cs,
-                &output,
-                &tmp,
-                &scalar[0],
+                &[&output, &tmp],
+                &[scalar[0].clone()],
             )?;
         } else if scalar.len() % 4 == 2 {
             let output2 = Self::ed25519_point_doubling(
@@ -1041,14 +827,10 @@ impl<F: PrimeField + PrimeFieldBits> AllocatedAffinePoint<F> {
                 &output4,
                 &self_times_3,
             )?;
-            output = Self::conditionally_select2(
+            output = Self::conditionally_select(
                 cs,
-                &output4,
-                &tmp1,
-                &tmp2,
-                &tmp3,
-                &scalar[0],
-                &scalar[1],
+                &[&output4, &tmp1, &tmp2, &tmp3],
+                &[scalar[0].clone(), scalar[1].clone()],
             )?;
         } else if scalar.len() % 4 == 3 {
             let output2 = Self::ed25519_point_doubling(
@@ -1098,19 +880,10 @@ impl<F: PrimeField + PrimeFieldBits> AllocatedAffinePoint<F> {
                 &output8,
                 &self_times_7,
             )?;
-            output = Self::conditionally_select3(
+            output = Self::conditionally_select(
                 cs,
-                &output8,
-                &tmp1,
-                &tmp2,
-                &tmp3,
-                &tmp4,
-                &tmp5,
-                &tmp6,
-                &tmp7,
-                &scalar[0],
-                &scalar[1],
-                &scalar[2],
+                &[&output8, &tmp1, &tmp2, &tmp3, &tmp4, &tmp5, &tmp6, &tmp7],
+                &[scalar[0].clone(), scalar[1].clone(), scalar[2].clone()],
             )?;
         }
 
@@ -1290,6 +1063,9 @@ mod tests {
 
         assert_eq!(p, p_al.value);
 
+        if !cs.is_satisfied() {
+            println!("{:?}", cs.which_is_unsatisfied());
+        }
         assert!(cs.is_satisfied());
         println!("Num constraints = {:?}", cs.num_constraints());
         println!("Num inputs = {:?}", cs.num_inputs());
