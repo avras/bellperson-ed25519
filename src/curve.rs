@@ -35,7 +35,6 @@ impl Add<&AffinePoint> for &AffinePoint {
     }
 }
 
-
 impl Sub<AffinePoint> for AffinePoint {
     type Output = AffinePoint;
 
@@ -101,7 +100,10 @@ impl AffinePoint {
 
 impl Default for AffinePoint {
     fn default() -> Self {
-        Self { x: Fe25519::zero(), y: Fe25519::one() }
+        Self {
+            x: Fe25519::zero(),
+            y: Fe25519::one(),
+        }
     }
 }
 
@@ -109,24 +111,33 @@ pub struct Ed25519Curve;
 
 impl Ed25519Curve {
     pub fn d() -> Fe25519 {
-        Fe25519(BigInt::parse_bytes(b"52036cee2b6ffe738cc740797779e89800700a4d4141d8ab75eb4dca135978a3", 16).unwrap())
+        Fe25519(
+            BigInt::parse_bytes(
+                b"52036cee2b6ffe738cc740797779e89800700a4d4141d8ab75eb4dca135978a3",
+                16,
+            )
+            .unwrap(),
+        )
     }
 
     pub fn order() -> BigUint {
-        BigUint::parse_bytes(b"1000000000000000000000000000000014def9dea2f79cd65812631a5cf5d3ed", 16).unwrap()
+        BigUint::parse_bytes(
+            b"1000000000000000000000000000000014def9dea2f79cd65812631a5cf5d3ed",
+            16,
+        )
+        .unwrap()
     }
 
     pub fn recover_even_x_from_y(y: &Fe25519) -> Fe25519 {
         let y_sq = &y.square();
-        let x_sq = (y_sq - &Fe25519::one()) * (Self::d()*y_sq + Fe25519::one()).invert().unwrap();
+        let x_sq = (y_sq - &Fe25519::one()) * (Self::d() * y_sq + Fe25519::one()).invert().unwrap();
 
         let x = x_sq.sqrt();
         assert!(x.is_some()); // y must correspond to a curve point
         let x = x.unwrap();
         if x.is_even().into() {
             x
-        }
-        else {
+        } else {
             -x
         }
     }
@@ -142,7 +153,7 @@ impl Ed25519Curve {
         let y = &point.y;
         let x_sq = x.square();
         let y_sq = y.square();
-        let tmp = -&x_sq + &y_sq - Fe25519::one() - Self::d()*x_sq*y_sq;
+        let tmp = -&x_sq + &y_sq - Fe25519::one() - Self::d() * x_sq * y_sq;
         tmp == Fe25519::zero()
     }
 
@@ -151,10 +162,10 @@ impl Ed25519Curve {
         let y1 = &p.y;
         let x2 = &q.x;
         let y2 = &q.y;
-        let dx1x2y1y2 = Self::d()*x1*x2*y1*y2;
+        let dx1x2y1y2 = Self::d() * x1 * x2 * y1 * y2;
         AffinePoint {
-            x: (x1*y2 + x2*y1)*(Fe25519::one() + &dx1x2y1y2).invert().unwrap(),
-            y: (x1*x2 + y1*y2)*(Fe25519::one() - &dx1x2y1y2).invert().unwrap(),
+            x: (x1 * y2 + x2 * y1) * (Fe25519::one() + &dx1x2y1y2).invert().unwrap(),
+            y: (x1 * x2 + y1 * y2) * (Fe25519::one() - &dx1x2y1y2).invert().unwrap(),
         }
     }
 
@@ -176,7 +187,6 @@ impl Ed25519Curve {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -187,7 +197,10 @@ mod tests {
         loop {
             let y = Fe25519::random(&mut rng);
             let y_sq = &y.square();
-            let x_sq = (y_sq - &Fe25519::one()) * (Ed25519Curve::d()*y_sq + Fe25519::one()).invert().unwrap();
+            let x_sq = (y_sq - &Fe25519::one())
+                * (Ed25519Curve::d() * y_sq + Fe25519::one())
+                    .invert()
+                    .unwrap();
 
             let x = x_sq.sqrt();
             if bool::from(x.is_some()) {
@@ -213,9 +226,9 @@ mod tests {
         let p = &random_point();
         assert!(Ed25519Curve::is_on_curve(p));
         let p2 = &p.double();
-        let p3 = &(p+p+p);
-        assert_eq!(p2+p, *p3);
-        assert_eq!(p3-p, *p2);
+        let p3 = &(p + p + p);
+        assert_eq!(p2 + p, *p3);
+        assert_eq!(p3 - p, *p2);
     }
 
     #[test]
@@ -224,7 +237,7 @@ mod tests {
         assert!(Ed25519Curve::is_on_curve(b));
         let scalar = BigUint::from(6u8);
         let p = Ed25519Curve::scalar_multiplication(&b, &scalar);
-        assert_eq!(p, b+b+b+b+b+b);
+        assert_eq!(p, b + b + b + b + b + b);
     }
 
     #[test]
@@ -240,5 +253,4 @@ mod tests {
         let p = Ed25519Curve::scalar_multiplication(&p, &scalar);
         assert!(p.is_zero());
     }
-
 }

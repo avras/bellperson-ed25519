@@ -1,10 +1,15 @@
-use bellperson::{ConstraintSystem, SynthesisError};
 use bellperson::gadgets::boolean::Boolean;
-use bellperson_emulated::field_element::{EmulatedFieldElement, EmulatedFieldParams, PseudoMersennePrime};
-use ff::{PrimeFieldBits, PrimeField};
+use bellperson::{ConstraintSystem, SynthesisError};
+use bellperson_emulated::field_element::{
+    EmulatedFieldElement, EmulatedFieldParams, PseudoMersennePrime,
+};
+use ff::{PrimeField, PrimeFieldBits};
 use num_bigint::BigInt;
 
-use crate::{curve::{AffinePoint, Ed25519Curve}, field::Fe25519};
+use crate::{
+    curve::{AffinePoint, Ed25519Curve},
+    field::Fe25519,
+};
 
 const DEFAULT_SCALAR_MULT_WINDOW_SIZE: i32 = 4;
 
@@ -20,7 +25,11 @@ impl EmulatedFieldParams for Ed25519FpParams {
     }
 
     fn modulus() -> BigInt {
-        BigInt::parse_bytes(b"7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffed", 16).unwrap()
+        BigInt::parse_bytes(
+            b"7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffed",
+            16,
+        )
+        .unwrap()
     }
 
     fn is_modulus_pseudo_mersenne() -> bool {
@@ -33,13 +42,13 @@ impl EmulatedFieldParams for Ed25519FpParams {
             c: BigInt::from(19),
         })
     }
-} 
+}
 
 type Ed25519Fp<F> = EmulatedFieldElement<F, Ed25519FpParams>;
 
 impl<F> From<&Fe25519> for Ed25519Fp<F>
 where
-    F: PrimeField + PrimeFieldBits
+    F: PrimeField + PrimeFieldBits,
 {
     fn from(value: &Fe25519) -> Self {
         Ed25519Fp::<F>::from(&value.0)
@@ -54,25 +63,26 @@ pub struct AllocatedAffinePoint<F: PrimeField + PrimeFieldBits> {
 }
 
 impl<F: PrimeField + PrimeFieldBits> AllocatedAffinePoint<F> {
-    pub fn alloc_affine_point<CS>(
-        cs: &mut CS,
-        value: &AffinePoint,
-    ) -> Result<Self, SynthesisError>
+    pub fn alloc_affine_point<CS>(cs: &mut CS, value: &AffinePoint) -> Result<Self, SynthesisError>
     where
         CS: ConstraintSystem<F>,
     {
         let x_limb_values = Ed25519Fp::<F>::from(&value.x);
         let y_limb_values = Ed25519Fp::<F>::from(&value.y);
 
-        let x = x_limb_values.allocate_field_element_unchecked(&mut cs.namespace(|| "allocate x"))?;
-        let y = y_limb_values.allocate_field_element_unchecked(&mut cs.namespace(|| "allocate y"))?;
+        let x =
+            x_limb_values.allocate_field_element_unchecked(&mut cs.namespace(|| "allocate x"))?;
+        let y =
+            y_limb_values.allocate_field_element_unchecked(&mut cs.namespace(|| "allocate y"))?;
 
-        Ok(Self { x, y, value: value.clone() })
+        Ok(Self {
+            x,
+            y,
+            value: value.clone(),
+        })
     }
 
-    pub fn alloc_identity_point<CS>(
-        cs: &mut CS,
-    ) -> Result<Self, SynthesisError>
+    pub fn alloc_identity_point<CS>(cs: &mut CS) -> Result<Self, SynthesisError>
     where
         CS: ConstraintSystem<F>,
     {
@@ -93,7 +103,6 @@ impl<F: PrimeField + PrimeFieldBits> AllocatedAffinePoint<F> {
         Ok(identity)
     }
 
-
     fn verify_point_addition<CS>(
         cs: &mut CS,
         p: &Self,
@@ -109,54 +118,28 @@ impl<F: PrimeField + PrimeFieldBits> AllocatedAffinePoint<F> {
         let y2 = &q.y;
         let x3 = &r.x;
         let y3 = &r.y;
-        
+
         let one = Ed25519Fp::<F>::from(&Fe25519::one());
         let d = Ed25519Fp::<F>::from(&Ed25519Curve::d());
 
-        let x1x2 = x1.mul(
-            &mut cs.namespace(|| "x1*x2"),
-            x2,
-        )?;
-        let y1y2 = y1.mul(
-            &mut cs.namespace(|| "y1*y2"),
-            y2,
-        )?;
-        let x1y2 = x1.mul(
-            &mut cs.namespace(|| "x1*y2"),
-            y2,
-        )?;
-        let x2y1 = x2.mul(
-            &mut cs.namespace(|| "x2*y1"),
-            y1,
-        )?;
+        let x1x2 = x1.mul(&mut cs.namespace(|| "x1*x2"), x2)?;
+        let y1y2 = y1.mul(&mut cs.namespace(|| "y1*y2"), y2)?;
+        let x1y2 = x1.mul(&mut cs.namespace(|| "x1*y2"), y2)?;
+        let x2y1 = x2.mul(&mut cs.namespace(|| "x2*y1"), y1)?;
 
-        let x1x2y1y2 = x1x2.mul(
-            &mut cs.namespace(|| "x1*x2*y1*y2"),
-            &y1y2,
-        )?;
-        let dx1x2y1y2 = d.mul(
-            &mut cs.namespace(|| "d*x1*x2*y1*y2"),
-            &x1x2y1y2,
-        )?;
+        let x1x2y1y2 = x1x2.mul(&mut cs.namespace(|| "x1*x2*y1*y2"), &y1y2)?;
+        let dx1x2y1y2 = d.mul(&mut cs.namespace(|| "d*x1*x2*y1*y2"), &x1x2y1y2)?;
 
-        let dx1x2y1y2_plus_1 = one.add(
-            &mut cs.namespace(|| "1 + d*x1*x2*y1*y2"),
-            &dx1x2y1y2
-        )?;
-        let neg_dx1x2y1y2_plus_1 = one.sub(
-            &mut cs.namespace(|| "1 - d*x1*x2*y1*y2"),
-            &dx1x2y1y2
-        )?;
+        let dx1x2y1y2_plus_1 = one.add(&mut cs.namespace(|| "1 + d*x1*x2*y1*y2"), &dx1x2y1y2)?;
+        let neg_dx1x2y1y2_plus_1 =
+            one.sub(&mut cs.namespace(|| "1 - d*x1*x2*y1*y2"), &dx1x2y1y2)?;
 
         let x3_times_denominator = x3.mul(
             &mut cs.namespace(|| "x3*(1 + d*x1*x2*y1*y2)"),
             &dx1x2y1y2_plus_1,
         )?;
 
-        let x1y2_plus_x2y1 = x1y2.add(
-            &mut cs.namespace(|| "x1*y2 + x1*y2"),
-            &x2y1,
-        )?;
+        let x1y2_plus_x2y1 = x1y2.add(&mut cs.namespace(|| "x1*y2 + x1*y2"), &x2y1)?;
         Ed25519Fp::<F>::assert_is_equal(
             &mut cs.namespace(|| "x3*(1 + d*x1*x2*y1*y2) == x1*y2 + x2*y1"),
             &x1y2_plus_x2y1,
@@ -168,10 +151,7 @@ impl<F: PrimeField + PrimeFieldBits> AllocatedAffinePoint<F> {
             &neg_dx1x2y1y2_plus_1,
         )?;
 
-        let x1x2_plus_y1y2 = x1x2.add(
-            &mut cs.namespace(|| "Reduce x1*x2 + y1*y2"),
-            &y1y2,
-        )?;
+        let x1x2_plus_y1y2 = x1x2.add(&mut cs.namespace(|| "Reduce x1*x2 + y1*y2"), &y1y2)?;
         Ed25519Fp::<F>::assert_is_equal(
             &mut cs.namespace(|| "y3*(1 - d*x1*x2*y1*y2) == x1*x2 + y1*y2"),
             &y3_times_denominator,
@@ -190,24 +170,16 @@ impl<F: PrimeField + PrimeFieldBits> AllocatedAffinePoint<F> {
         CS: ConstraintSystem<F>,
     {
         let sum_value = &p.value + &q.value;
-        let sum = Self::alloc_affine_point(
-            &mut cs.namespace(|| "allocate sum"),
-            &sum_value,
-        )?;
+        let sum = Self::alloc_affine_point(&mut cs.namespace(|| "allocate sum"), &sum_value)?;
 
         sum.x.check_field_membership(
-            &mut cs.namespace(|| "check x coordinate of sum is in base field")
+            &mut cs.namespace(|| "check x coordinate of sum is in base field"),
         )?;
         sum.y.check_field_membership(
-            &mut cs.namespace(|| "check y coordinate of sum is in base field")
+            &mut cs.namespace(|| "check y coordinate of sum is in base field"),
         )?;
 
-        Self::verify_point_addition(
-            &mut cs.namespace(|| "verify point addition"),
-            p,
-            q,
-            &sum,
-        )?;
+        Self::verify_point_addition(&mut cs.namespace(|| "verify point addition"), p, q, &sum)?;
 
         Ok(sum)
     }
@@ -228,30 +200,16 @@ impl<F: PrimeField + PrimeFieldBits> AllocatedAffinePoint<F> {
         let x = &p.x;
         let y = &p.y;
 
-        let x2 = x.mul(
-            &mut cs.namespace(|| "x*x"),
-            x,
-        )?;
-        let y2 = y.mul(
-            &mut cs.namespace(|| "y*y"),
-            y,
-        )?;
-        let xy = x.mul(
-            &mut cs.namespace(|| "x*y"),
-            y,
-        )?;
+        let x2 = x.mul(&mut cs.namespace(|| "x*x"), x)?;
+        let y2 = y.mul(&mut cs.namespace(|| "y*y"), y)?;
+        let xy = x.mul(&mut cs.namespace(|| "x*y"), y)?;
 
         // Numerator of doubled_p x-coordinate
-        let expected_x_numerator = xy.mul_const(
-            &mut cs.namespace(|| "2*x*y"),
-            &BigInt::from(2),
-        )?;
+        let expected_x_numerator = xy.mul_const(&mut cs.namespace(|| "2*x*y"), &BigInt::from(2))?;
         let minus_x2 = x2.neg(&mut cs.namespace(|| "-x*x"))?;
         // Since curve equation is -x^2 + y^2 = 1 + dx^2y^2, we can calculate the RHS using the LHS
-        let doubled_p_x_denominator = minus_x2.add(
-            &mut cs.namespace(|| "-x*x+ y*y  a.k.a  1 + d*x*x*y*y"),
-            &y2,
-        )?;
+        let doubled_p_x_denominator =
+            minus_x2.add(&mut cs.namespace(|| "-x*x+ y*y  a.k.a  1 + d*x*x*y*y"), &y2)?;
         let doubled_p_x_numerator = doubled_p.x.mul(
             &mut cs.namespace(|| "2P.x times (1+d*x*x*y*y)"),
             &doubled_p_x_denominator,
@@ -262,12 +220,8 @@ impl<F: PrimeField + PrimeFieldBits> AllocatedAffinePoint<F> {
             &expected_x_numerator,
         )?;
 
-
         // Numerator of doubled_p y-coordinate
-        let expected_y_numerator = x2.add(
-            &mut cs.namespace(|| "x*x + y*y"),
-            &y2,
-        )?;
+        let expected_y_numerator = x2.add(&mut cs.namespace(|| "x*x + y*y"), &y2)?;
         let two = Ed25519Fp::<F>::from(&Fe25519::from(2u64));
         let doubled_p_y_denominator = two.sub(
             &mut cs.namespace(|| " 2 - (1 + d*x*x*y*y) = 1 - d*x*x*y*y"),
@@ -282,39 +236,29 @@ impl<F: PrimeField + PrimeFieldBits> AllocatedAffinePoint<F> {
             &doubled_p_y_numerator,
             &expected_y_numerator,
         )?;
-        
+
         Ok(())
     }
 
-    pub fn ed25519_point_doubling<CS>(
-        cs: &mut CS,
-        p: &Self,
-    ) -> Result<Self, SynthesisError>
+    pub fn ed25519_point_doubling<CS>(cs: &mut CS, p: &Self) -> Result<Self, SynthesisError>
     where
         CS: ConstraintSystem<F>,
     {
         let double_value = p.value.double();
-        let double_p = Self::alloc_affine_point(
-            &mut cs.namespace(|| "allocate 2P"),
-            &double_value,
-        )?;
+        let double_p =
+            Self::alloc_affine_point(&mut cs.namespace(|| "allocate 2P"), &double_value)?;
 
         double_p.x.check_field_membership(
-            &mut cs.namespace(|| "check x coordinate of double point is in base field")
+            &mut cs.namespace(|| "check x coordinate of double point is in base field"),
         )?;
         double_p.y.check_field_membership(
-            &mut cs.namespace(|| "check y coordinate of double point is in base field")
+            &mut cs.namespace(|| "check y coordinate of double point is in base field"),
         )?;
 
-        Self::verify_point_doubling(
-            &mut cs.namespace(|| "verify point doubling"),
-            p,
-            &double_p,
-        )?;
+        Self::verify_point_doubling(&mut cs.namespace(|| "verify point doubling"), p, &double_p)?;
 
         Ok(double_p)
     }
-
 
     /// If `condition` is true, return `in1`. Otherwise, return `in0`.
     /// `selector_bits` are little-endian order
@@ -334,14 +278,8 @@ impl<F: PrimeField + PrimeFieldBits> AllocatedAffinePoint<F> {
             );
             return Err(SynthesisError::Unsatisfiable);
         }
-        let inputs_x = inputs
-            .iter()
-            .map(|i| i.x.clone())
-            .collect::<Vec<_>>();
-        let inputs_y = inputs
-            .iter()
-            .map(|i| i.y.clone())
-            .collect::<Vec<_>>();
+        let inputs_x = inputs.iter().map(|i| i.x.clone()).collect::<Vec<_>>();
+        let inputs_y = inputs.iter().map(|i| i.y.clone()).collect::<Vec<_>>();
 
         let x = EmulatedFieldElement::mux_tree(
             &mut cs.namespace(|| "allocate value of output x coordinate"),
@@ -361,7 +299,7 @@ impl<F: PrimeField + PrimeFieldBits> AllocatedAffinePoint<F> {
             }
         }
         let value = inputs[res_index].value.clone();
-        
+
         Ok(Self { x, y, value })
     }
 
@@ -389,16 +327,15 @@ impl<F: PrimeField + PrimeFieldBits> AllocatedAffinePoint<F> {
         }
 
         // No range checks on limbs required as it is checked to be equal to (0,1)
-        let identity_point = Self::alloc_identity_point(
-            &mut cs.namespace(|| "allocate identity point"),
-        )?;
+        let identity_point =
+            Self::alloc_identity_point(&mut cs.namespace(|| "allocate identity point"))?;
 
         // Remember to avoid field membership checks before calling this function
         self.x.check_field_membership(
-            &mut cs.namespace(|| "check x coordinate of base point is in base field")
+            &mut cs.namespace(|| "check x coordinate of base point is in base field"),
         )?;
         self.y.check_field_membership(
-            &mut cs.namespace(|| "check y coordinate of base point is in base field")
+            &mut cs.namespace(|| "check y coordinate of base point is in base field"),
         )?;
 
         let mut lookup_table: Vec<Self> = vec![];
@@ -409,12 +346,12 @@ impl<F: PrimeField + PrimeFieldBits> AllocatedAffinePoint<F> {
             if i % 2 == 0 {
                 lookup_table.push(Self::ed25519_point_doubling(
                     &mut cs.namespace(|| format!("allocate {i} times the base")),
-                    &lookup_table[i/2],
+                    &lookup_table[i / 2],
                 )?);
             } else {
                 lookup_table.push(Self::ed25519_point_addition(
                     &mut cs.namespace(|| format!("allocate {i} times the base")),
-                    &lookup_table[i-1],
+                    &lookup_table[i - 1],
                     self,
                 )?);
             };
@@ -424,7 +361,7 @@ impl<F: PrimeField + PrimeFieldBits> AllocatedAffinePoint<F> {
 
         let mut window_bits: Vec<Boolean> = vec![];
         for i in 0..window_size {
-            window_bits.push(scalar[(n-window_size+1+i) as usize].clone())
+            window_bits.push(scalar[(n - window_size + 1 + i) as usize].clone())
         }
 
         let mut output = Self::conditionally_select(
@@ -432,20 +369,19 @@ impl<F: PrimeField + PrimeFieldBits> AllocatedAffinePoint<F> {
             &lookup_table,
             &window_bits,
         )?;
-            
-        let mut i: i32 = n-window_size;
-        while i >= window_size-1 {
 
+        let mut i: i32 = n - window_size;
+        while i >= window_size - 1 {
             for j in 0..window_size {
                 output = Self::ed25519_point_doubling(
-                    &mut cs.namespace(|| format!("doubling number {} in iteration {i}", j+1)),
+                    &mut cs.namespace(|| format!("doubling number {} in iteration {i}", j + 1)),
                     &output,
                 )?;
             }
-            
+
             window_bits.clear();
             for j in 0..window_size {
-                window_bits.push(scalar[(i-window_size+1+j) as usize].clone())
+                window_bits.push(scalar[(i - window_size + 1 + j) as usize].clone())
             }
 
             let tmp = Self::conditionally_select(
@@ -459,8 +395,8 @@ impl<F: PrimeField + PrimeFieldBits> AllocatedAffinePoint<F> {
                 &output,
                 &tmp,
             )?;
-                
-            i = i-window_size;
+
+            i = i - window_size;
         }
 
         let num_remaining_bits = scalar.len() % (window_size as usize);
@@ -468,7 +404,7 @@ impl<F: PrimeField + PrimeFieldBits> AllocatedAffinePoint<F> {
         if num_remaining_bits != 0 {
             for j in 0..num_remaining_bits {
                 output = Self::ed25519_point_doubling(
-                    &mut cs.namespace(|| format!("final output doubling number {}", j+1)),
+                    &mut cs.namespace(|| format!("final output doubling number {}", j + 1)),
                     &output,
                 )?;
             }
@@ -484,7 +420,9 @@ impl<F: PrimeField + PrimeFieldBits> AllocatedAffinePoint<F> {
 
             for j in 2..(1usize << num_remaining_bits) {
                 let tmp = Self::ed25519_point_addition(
-                    &mut cs.namespace(|| format!("sum of {}*output and {j}*base", 1 << num_remaining_bits)),
+                    &mut cs.namespace(|| {
+                        format!("sum of {}*output and {j}*base", 1 << num_remaining_bits)
+                    }),
                     &output,
                     &lookup_table[j],
                 )?;
@@ -516,13 +454,14 @@ impl<F: PrimeField + PrimeFieldBits> AllocatedAffinePoint<F> {
     {
         Self::ed25519_scalar_multiplication_windowed(
             &self,
-            &mut cs.namespace(|| format!("scalar multiplication with window {DEFAULT_SCALAR_MULT_WINDOW_SIZE}")),
+            &mut cs.namespace(|| {
+                format!("scalar multiplication with window {DEFAULT_SCALAR_MULT_WINDOW_SIZE}")
+            }),
             scalar,
             DEFAULT_SCALAR_MULT_WINDOW_SIZE,
         )
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -530,7 +469,7 @@ mod tests {
 
     use super::*;
     use bellperson::gadgets::test::TestConstraintSystem;
-    use num_bigint::{RandBigInt, BigUint};
+    use num_bigint::{BigUint, RandBigInt};
     use num_integer::Integer;
     use num_traits::Zero;
     use pasta_curves::Fp;
@@ -547,17 +486,13 @@ mod tests {
 
         let mut cs = TestConstraintSystem::<Fp>::new();
 
-        let p_alloc = AllocatedAffinePoint::alloc_affine_point(
-            &mut cs.namespace(|| "alloc point p"),
-            &p,
-        );
+        let p_alloc =
+            AllocatedAffinePoint::alloc_affine_point(&mut cs.namespace(|| "alloc point p"), &p);
         assert!(p_alloc.is_ok());
         let p_al = p_alloc.unwrap();
 
-        let q_alloc = AllocatedAffinePoint::alloc_affine_point(
-            &mut cs.namespace(|| "alloc point q"),
-            &q,
-        );
+        let q_alloc =
+            AllocatedAffinePoint::alloc_affine_point(&mut cs.namespace(|| "alloc point q"), &q);
         assert!(q_alloc.is_ok());
         let q_al = q_alloc.unwrap();
 
@@ -577,7 +512,6 @@ mod tests {
         assert!(cs.is_satisfied());
         println!("Num constraints = {:?}", cs.num_constraints());
         println!("Num inputs = {:?}", cs.num_inputs());
-
     }
 
     #[test]
@@ -590,17 +524,13 @@ mod tests {
 
         let mut cs = TestConstraintSystem::<Fp>::new();
 
-        let p_alloc = AllocatedAffinePoint::alloc_affine_point(
-            &mut cs.namespace(|| "alloc point p"),
-            &p,
-        );
+        let p_alloc =
+            AllocatedAffinePoint::alloc_affine_point(&mut cs.namespace(|| "alloc point p"), &p);
         assert!(p_alloc.is_ok());
         let p_al = p_alloc.unwrap();
 
-        let double_alloc = AllocatedAffinePoint::ed25519_point_doubling(
-            &mut cs.namespace(|| "doubling p"),
-            &p_al,
-        );
+        let double_alloc =
+            AllocatedAffinePoint::ed25519_point_doubling(&mut cs.namespace(|| "doubling p"), &p_al);
         assert!(double_alloc.is_ok());
         let double_al = double_alloc.unwrap();
 
@@ -612,18 +542,17 @@ mod tests {
         assert!(cs.is_satisfied());
         println!("Num constraints = {:?}", cs.num_constraints());
         println!("Num inputs = {:?}", cs.num_inputs());
-
     }
 
     #[test]
     fn alloc_affine_scalar_multiplication_default() {
         let b = Ed25519Curve::basepoint();
         let mut rng = rand::thread_rng();
-       
+
         let mut scalar = rng.gen_biguint(256u64);
         scalar = scalar >> 3; // scalar now has 253 significant bits
         let p = Ed25519Curve::scalar_multiplication(&b, &scalar);
-       
+
         let mut scalar_vec: Vec<Boolean> = vec![];
         for _i in 0..253 {
             if scalar.is_odd() {
@@ -655,7 +584,6 @@ mod tests {
         assert!(cs.is_satisfied());
         println!("Num constraints = {:?}", cs.num_constraints());
         println!("Num inputs = {:?}", cs.num_inputs());
-
     }
 
     #[test]
@@ -667,15 +595,14 @@ mod tests {
         scalar_multiplication_helper(5);
     }
 
-
     fn scalar_multiplication_helper(window_size: i32) {
         let b = Ed25519Curve::basepoint();
         let mut rng = rand::thread_rng();
-       
+
         let mut scalar = rng.gen_biguint(256u64);
         scalar = scalar >> 3; // scalar now has 253 significant bits
         let p = Ed25519Curve::scalar_multiplication(&b, &scalar);
-       
+
         let mut scalar_vec: Vec<Boolean> = vec![];
         for _i in 0..253 {
             if scalar.is_odd() {
@@ -706,8 +633,9 @@ mod tests {
         assert_eq!(p, p_al.value);
 
         assert!(cs.is_satisfied());
-        println!("Num constraints for window_size {window_size} = {:?}", cs.num_constraints());
-
+        println!(
+            "Num constraints for window_size {window_size} = {:?}",
+            cs.num_constraints()
+        );
     }
-
 }

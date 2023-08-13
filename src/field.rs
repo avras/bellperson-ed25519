@@ -1,8 +1,12 @@
-use std::{ops::{Rem, Add, Sub, Mul, Neg, AddAssign, SubAssign, MulAssign}, iter::{Sum, Product}, borrow::Borrow};
+use std::{
+    borrow::Borrow,
+    iter::{Product, Sum},
+    ops::{Add, AddAssign, Mul, MulAssign, Neg, Rem, Sub, SubAssign},
+};
 
 use num_bigint::{BigInt, RandBigInt};
-use num_traits::{Zero, One};
 use num_integer::Integer;
+use num_traits::{One, Zero};
 use rand::RngCore;
 
 #[derive(Clone, PartialEq, Eq, Debug, Default)]
@@ -115,7 +119,6 @@ impl<'a> MulAssign<&'a Fe25519> for Fe25519 {
     }
 }
 
-
 impl Neg for Fe25519 {
     type Output = Self;
     fn neg(self) -> Self::Output {
@@ -123,7 +126,7 @@ impl Neg for Fe25519 {
         Self(p - self.0)
     }
 }
-  
+
 impl<'a> Neg for &'a Fe25519 {
     type Output = Fe25519;
     fn neg(self) -> Self::Output {
@@ -134,7 +137,7 @@ impl<'a> Neg for &'a Fe25519 {
 
 impl<T> Sum<T> for Fe25519
 where
-    T: Borrow<Fe25519>
+    T: Borrow<Fe25519>,
 {
     fn sum<I: Iterator<Item = T>>(iter: I) -> Self {
         iter.fold(Fe25519::zero(), |acc, item| acc + item.borrow())
@@ -143,7 +146,7 @@ where
 
 impl<T> Product<T> for Fe25519
 where
-    T: Borrow<Fe25519>
+    T: Borrow<Fe25519>,
 {
     fn product<I: Iterator<Item = T>>(iter: I) -> Self {
         iter.fold(Fe25519::one(), |acc, item| acc * item.borrow())
@@ -160,11 +163,21 @@ impl Fe25519 {
     }
 
     pub fn modulus() -> BigInt {
-        BigInt::parse_bytes(b"7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffed", 16).unwrap()
+        BigInt::parse_bytes(
+            b"7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffed",
+            16,
+        )
+        .unwrap()
     }
 
     pub fn sqrt_minus_one() -> Self {
-        Self(BigInt::parse_bytes(b"2b8324804fc1df0b2b4d00993dfbd7a72f431806ad2fe478c4ee1b274a0ea0b0", 16).unwrap())
+        Self(
+            BigInt::parse_bytes(
+                b"2b8324804fc1df0b2b4d00993dfbd7a72f431806ad2fe478c4ee1b274a0ea0b0",
+                16,
+            )
+            .unwrap(),
+        )
     }
 
     pub fn is_zero(&self) -> bool {
@@ -205,16 +218,15 @@ impl Fe25519 {
     pub fn sqrt(&self) -> Option<Self> {
         let exponent = (Self::modulus() + 3) / 8;
         let beta = self.pow(&exponent); // candidate square root
-        
+
         let beta_sq = beta.square();
         let is_sq_root = (&beta_sq - self).is_zero() | (&beta_sq + self).is_zero();
 
         let neg_not_required = (&beta_sq - self).is_zero();
         let sq_root = if bool::from(neg_not_required) {
             beta
-        }
-        else {
-            beta*Self::sqrt_minus_one()
+        } else {
+            beta * Self::sqrt_minus_one()
         };
 
         if is_sq_root {
@@ -225,15 +237,13 @@ impl Fe25519 {
     }
 
     pub fn is_even(&self) -> bool {
-       self.0.is_even() 
+        self.0.is_even()
     }
 }
-
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
 
     #[test]
     fn sanity_checks() {
@@ -258,55 +268,64 @@ mod tests {
         let mut x = Fe25519::random(&mut rng);
         let y = Fe25519::random(&mut rng);
         let neg_y = -&y;
-        assert_eq!(&y+&neg_y, Fe25519::zero());
-        assert_eq!(&x+&neg_y, &x-&y);
+        assert_eq!(&y + &neg_y, Fe25519::zero());
+        assert_eq!(&x + &neg_y, &x - &y);
 
         let old_x = x.clone();
         x -= &y;
         assert_eq!(&x + &y, old_x);
         x += &y;
         assert_eq!(x, old_x);
-    
-        let a = [x.clone(), Fe25519::from(1u64), Fe25519::from(2u64), y.clone()];
-        assert_eq!(Fe25519::sum(a.iter()), &x+&y+Fe25519::from(3u64));
-    
-        let y_ref = &y;
-        assert_eq!(&x+&y, &x+y_ref);
-        x += y_ref;
-        assert_eq!(&x-&y, &x-&y_ref);
-        x -= y_ref;
-        assert_eq!(&x+&y, &x+y_ref);
-    }
 
+        let a = [
+            x.clone(),
+            Fe25519::from(1u64),
+            Fe25519::from(2u64),
+            y.clone(),
+        ];
+        assert_eq!(Fe25519::sum(a.iter()), &x + &y + Fe25519::from(3u64));
+
+        let y_ref = &y;
+        assert_eq!(&x + &y, &x + y_ref);
+        x += y_ref;
+        assert_eq!(&x - &y, &x - &y_ref);
+        x -= y_ref;
+        assert_eq!(&x + &y, &x + y_ref);
+    }
 
     #[test]
     fn check_mul() {
         let mut rng = rand::thread_rng();
         let mut x = Fe25519::random(&mut rng);
         let y = Fe25519::random(&mut rng);
-        assert_eq!(x.invert().unwrap()*&x, Fe25519::one());
+        assert_eq!(x.invert().unwrap() * &x, Fe25519::one());
 
         let old_x = x.clone();
         x *= &y;
-        assert_eq!(&x*&y.invert().unwrap(), old_x);
+        assert_eq!(&x * &y.invert().unwrap(), old_x);
 
-        let a = [x.clone(), Fe25519::from(2u64), Fe25519::from(3u64), y.clone()];
-        assert_eq!(Fe25519::product(a.iter()), &x*&y*Fe25519::from(6u64));
+        let a = [
+            x.clone(),
+            Fe25519::from(2u64),
+            Fe25519::from(3u64),
+            y.clone(),
+        ];
+        assert_eq!(Fe25519::product(a.iter()), &x * &y * Fe25519::from(6u64));
 
         let y_ref = &y;
-        assert_eq!(&x*&y, &x*y_ref);
+        assert_eq!(&x * &y, &x * y_ref);
         x *= y_ref;
-        assert_eq!(&x*&y.invert().unwrap(), x*y_ref.invert().unwrap());
+        assert_eq!(&x * &y.invert().unwrap(), x * y_ref.invert().unwrap());
     }
 
     #[test]
     fn check_square_double() {
         let mut rng = rand::thread_rng();
         let x = Fe25519::random(&mut rng);
-        assert_eq!(x.square(), &x*&x);
-        assert_eq!(x.double(), &x+&x);
+        assert_eq!(x.square(), &x * &x);
+        assert_eq!(x.double(), &x + &x);
         let two = Fe25519::from(2u64);
-        assert_eq!(x.double(), x*two);
+        assert_eq!(x.double(), x * two);
     }
 
     #[test]
