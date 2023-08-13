@@ -3,16 +3,21 @@ name = "bellperson-ed25519"
 version = "0.1.0"
 edition = "2021"
 authors = ["Saravanan Vijayakumaran <sarva@ee.iitb.ac.in>"]
-license-file = "LICENSE"
+license = "MIT OR Apache-2.0"
+description = "Ed25519 curve operations using the bellperson-emulated library"
+documentation = "https://docs.rs/bellperson-ed25519"
+homepage = "https://github.com/avras/bellperson-ed25519"
+repository = "https://github.com/avras/bellperson-ed25519"
+
 
 [dependencies]
-bellperson = "0.24.1"
-bellperson-emulated = { version = "0.1.0", path = "../bellperson-emulated" }
-ff = { version = "0.12.0", features = ["derive"] }
+bellperson = { version = "0.25.0", default-features = false }
+bellperson-emulated = "0.1.0"
+ff = "0.13.0"
 num-bigint = { version = "0.4.3", features = ["rand"] }
 num-integer = "0.1.45"
 num-traits = "0.2.15"
 rand = "0.8.5"
 
 [dev-dependencies]
-pasta_curves = { version = "0.5.2", package = "fil_pasta_curves" }
+pasta_curves = "0.5.1"
