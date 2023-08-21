@@ -1,6 +1,6 @@
-# bellperson-ed25519
+# bellpepper-ed25519
 
-Ed25519 curve operations using the [bellperson-emulated](https://github.com/avras/bellperson-emulated) library
+Ed25519 curve operations using the `bellpepper-emulated` library
 
 
 ## License

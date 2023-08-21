@@ -1,18 +1,19 @@
 [package]
-name = "bellperson-ed25519"
+name = "bellpepper-ed25519"
 version = "0.1.0"
 edition = "2021"
 authors = ["Saravanan Vijayakumaran <sarva@ee.iitb.ac.in>"]
 license = "MIT OR Apache-2.0"
 description = "Ed25519 curve operations using the bellperson-emulated library"
-documentation = "https://docs.rs/bellperson-ed25519"
-homepage = "https://github.com/avras/bellperson-ed25519"
-repository = "https://github.com/avras/bellperson-ed25519"
+documentation = "https://docs.rs/bellpepper-ed25519"
+homepage = "https://github.com/lurk-lab/bellpepper-gadgets"
+repository = "https://github.com/lurk-lab/bellpepper-gadgets"
 
 
 [dependencies]
-bellperson = { version = "0.25.0", default-features = false }
-bellperson-emulated = "0.1.0"
+bellpepper-core = { version="0.2.0", default-features = false }
+bellpepper = { version="0.2.0", default-features = false }
+bellpepper-emulated = {git = "https://github.com/avras/bellperson-emulated.git", branch = "bellpepper-version" }
 ff = "0.13.0"
 num-bigint = { version = "0.4.3", features = ["rand"] }
 num-integer = "0.1.45"

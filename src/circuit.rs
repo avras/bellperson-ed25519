@@ -1,6 +1,6 @@
-use bellperson::gadgets::boolean::Boolean;
-use bellperson::{ConstraintSystem, SynthesisError};
-use bellperson_emulated::field_element::{
+use bellpepper_core::boolean::Boolean;
+use bellpepper_core::{ConstraintSystem, SynthesisError};
+use bellpepper_emulated::field_element::{
     EmulatedFieldElement, EmulatedFieldParams, PseudoMersennePrime,
 };
 use ff::{PrimeField, PrimeFieldBits};
@@ -468,7 +468,7 @@ mod tests {
     use crate::curve::Ed25519Curve;
 
     use super::*;
-    use bellperson::gadgets::test::TestConstraintSystem;
+    use bellpepper_core::test_cs::TestConstraintSystem;
     use num_bigint::{BigUint, RandBigInt};
     use num_integer::Integer;
     use num_traits::Zero;
