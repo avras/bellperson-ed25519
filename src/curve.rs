@@ -7,8 +7,8 @@ use crate::field::Fe25519;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AffinePoint {
-    pub(crate) x: Fe25519,
-    pub(crate) y: Fe25519,
+    pub x: Fe25519,
+    pub y: Fe25519,
 }
 
 impl Add<AffinePoint> for AffinePoint {
