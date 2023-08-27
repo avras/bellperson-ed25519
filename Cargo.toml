@@ -1,6 +1,6 @@
 [package]
 name = "bellperson-ed25519"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 authors = ["Saravanan Vijayakumaran <sarva@ee.iitb.ac.in>"]
 license = "MIT OR Apache-2.0"
@@ -12,7 +12,7 @@ repository = "https://github.com/avras/bellperson-ed25519"
 
 [dependencies]
 bellperson = { version = "0.25.0", default-features = false }
-bellperson-emulated = "0.1.0"
+bellperson-emulated = "0.2.0"
 ff = "0.13.0"
 num-bigint = { version = "0.4.3", features = ["rand"] }
 num-integer = "0.1.45"
