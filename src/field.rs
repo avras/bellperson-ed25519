@@ -4,7 +4,7 @@ use std::{
     ops::{Add, AddAssign, Mul, MulAssign, Neg, Rem, Sub, SubAssign},
 };
 
-use num_bigint::{BigInt, RandBigInt};
+use num_bigint::{BigInt, RandBigInt, Sign};
 use num_integer::Integer;
 use num_traits::{One, Zero};
 use rand::RngCore;
@@ -15,6 +15,12 @@ pub struct Fe25519(pub(crate) BigInt);
 impl From<u64> for Fe25519 {
     fn from(value: u64) -> Self {
         Self(BigInt::from(value))
+    }
+}
+
+impl From<BigInt> for Fe25519 {
+    fn from(value: BigInt) -> Self {
+        Self(value)
     }
 }
 
@@ -238,6 +244,15 @@ impl Fe25519 {
 
     pub fn is_even(&self) -> bool {
         self.0.is_even()
+    }
+
+    pub fn to_bytes_le(&self) -> [u8; 32] {
+        let (_sign, bytes) = self.0.to_bytes_le();
+        bytes.into_iter().chain(vec![0u8; 31]).take(32).collect::<Vec<_>>().try_into().unwrap()
+    }
+
+    pub fn from_bytes_le(bytes: &[u8]) -> Self {
+        Self(BigInt::from_bytes_le(Sign::Plus, bytes))
     }
 }
 
